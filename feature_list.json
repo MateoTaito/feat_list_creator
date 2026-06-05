@@ -1,0 +1,114 @@
+{
+  "project": "nextjs-todo",
+  "description": "Aplicación de tareas con NextJS. Sirve como ejemplo didáctico de Harness Engineering con stack JavaScript/TypeScript.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": [
+      "pending",
+      "spec_ready",
+      "in_progress",
+      "done",
+      "blocked"
+    ],
+    "sdd_required_when": "feature has \"sdd\": true"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "submodules_correction",
+      "title": "corregir estructura de modulo/submodulo",
+      "description": "Actualmente el modelo liga submodulos",
+      "acceptance": [
+        "Existe src/lib/storage.ts con funciones loadTasks() y saveTasks(tasks)",
+        "loadTasks() devuelve [] si no hay datos guardados",
+        "saveTasks() serializa a JSON y guarda en localStorage",
+        "tests/storage.test.ts cubre los 3 casos anteriores"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 2,
+      "name": "todo_model",
+      "title": "Modelo de Tarea",
+      "description": "Estructura TypeScript que representa una tarea con id, title, completed, createdAt.",
+      "acceptance": [
+        "Existe src/lib/todo.ts con interfaz Todo y función createTodo(title)",
+        "createTodo genera id único y createdAt en ISO 8601",
+        "tests/todo.test.ts valida creación y serialización"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 3,
+      "name": "todo_list_component",
+      "title": "Componente de lista de tareas",
+      "description": "Muestra la lista de tareas con opción de marcar como completada.",
+      "acceptance": [
+        "Existe src/components/TodoList.tsx que renderiza lista de tareas",
+        "Cada tarea muestra título y checkbox para completar",
+        "Al marcar checkbox, la tarea se actualiza en localStorage",
+        "tests/TodoList.test.tsx cubre renderizado y interacción"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "name": "add_todo_form",
+      "title": "Formulario para agregar tareas",
+      "description": "Formulario con input y botón para crear nuevas tareas.",
+      "acceptance": [
+        "Existe src/components/AddTodo.tsx con input y botón",
+        "Al enviar, crea nueva tarea y limpia el input",
+        "Valida que el título no esté vacío",
+        "tests/AddTodo.test.tsx cubre éxito y validación"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 5,
+      "name": "todo_page",
+      "title": "Página principal de tareas",
+      "description": "Página NextJS que integra formulario y lista de tareas.",
+      "acceptance": [
+        "Existe src/app/page.tsx que renderiza AddTodo y TodoList",
+        "La página carga tareas de localStorage al montar",
+        "Al agregar tarea, la lista se actualiza automáticamente",
+        "tests/page.test.tsx cubre integración"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 6,
+      "name": "delete_todo",
+      "title": "Eliminar tarea",
+      "description": "Permite eliminar una tarea individual con confirmación.",
+      "acceptance": [
+        "Cada tarea tiene botón de eliminar",
+        "Al hacer click, muestra confirmación antes de eliminar",
+        "Elimina la tarea de localStorage y actualiza la lista",
+        "tests/delete.test.tsx cubre eliminación y cancelación"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 7,
+      "name": "filter_todos",
+      "title": "Filtrar tareas",
+      "description": "Permite filtrar por: todas, pendientes, completadas.",
+      "acceptance": [
+        "Existen botones/links para filtrar: All, Active, Completed",
+        "Al seleccionar filtro, muestra solo tareas correspondientes",
+        "El filtro se mantiene al agregar/eliminar tareas",
+        "tests/filters.test.tsx cubre cada filtro"
+      ],
+      "sdd": true,
+      "status": "pending"
+    }
+  ]
+}

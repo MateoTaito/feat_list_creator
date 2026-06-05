@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "bdd-patterns": {
+      "source": "thebushidocollective/han",
+      "sourceType": "github",
+      "skillPath": "plugins/patterns/bdd/skills/bdd-patterns/SKILL.md",
+      "computedHash": "568efbb372f2c9f180c68fe37a52303a47192afaa1a739a9dfba3bcc8eff464c"
+    },
+    "deliver-acceptance-criteria": {
+      "source": "product-on-purpose/pm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/deliver-acceptance-criteria/SKILL.md",
+      "computedHash": "08d6c5312fda04fcf9a5c2c79fe73bcfe6ae02361dffd808c09ba62da542a201"
+    },
+    "harness-engineering-playbook": {
+      "source": "broomva/harness-engineering-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "a1a4730012e1e3c5b26f38b1e3e6753dc5325c6bf48693605cd5b3bc97177110"
+    },
+    "spec-driven-implementation": {
+      "source": "warpdotdev/common-skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/spec-driven-implementation/SKILL.md",
+      "computedHash": "45793ca1e35b032ddfd2596f2e86fd6f6e938549373bfe4aeb74683486a179e4"
+    },
+    "speckit-tasks": {
+      "source": "dceoy/speckit-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/speckit-tasks/SKILL.md",
+      "computedHash": "59889b43cbec42a81dcf9a514d0a56a1fb80be9f82497cb6a5f282f9a0d1be9a"
+    }
+  }
+}
