@@ -16,98 +16,184 @@
   },
   "features": [
     {
-      "id": 1,
-      "name": "submodules_correction",
-      "title": "corregir estructura de modulo/submodulo",
-      "description": "Actualmente el modelo liga submodulos",
+      "id": 14,
+      "name": "admin_query_drop_submodules",
+      "title": "Quitar submodules del typing y query de admin tras el refactor",
+      "description": "Las features 1-8 migraron schema y backend al modelo donde evaluations y resources viven a nivel módulo, pero la app admin quedó arrastrando el tipo submodules en el SELECT de Prisma y en las interfaces Course de los componentes del editor de curso. Esto deja tipos inflados, queries trayendo columnas innecesarias y un bug visible en el contador 'Recursos' de Summary.tsx que itera submodules en busca de video_url (modelo legacy). Limpia el residuo legacy de la migración a modelo módulo en admin sin tocar la web del estudiante (que sigue consumiendo submodules para YouTube embeds).",
       "acceptance": [
-        "Existe src/lib/storage.ts con funciones loadTasks() y saveTasks(tasks)",
-        "loadTasks() devuelve [] si no hay datos guardados",
-        "saveTasks() serializa a JSON y guarda en localStorage",
-        "tests/storage.test.ts cubre los 3 casos anteriores"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": 2,
-      "name": "todo_model",
-      "title": "Modelo de Tarea",
-      "description": "Estructura TypeScript que representa una tarea con id, title, completed, createdAt.",
-      "acceptance": [
-        "Existe src/lib/todo.ts con interfaz Todo y función createTodo(title)",
-        "createTodo genera id único y createdAt en ISO 8601",
-        "tests/todo.test.ts valida creación y serialización"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": 3,
-      "name": "todo_list_component",
-      "title": "Componente de lista de tareas",
-      "description": "Muestra la lista de tareas con opción de marcar como completada.",
-      "acceptance": [
-        "Existe src/components/TodoList.tsx que renderiza lista de tareas",
-        "Cada tarea muestra título y checkbox para completar",
-        "Al marcar checkbox, la tarea se actualiza en localStorage",
-        "tests/TodoList.test.tsx cubre renderizado y interacción"
+        "apps/admin/app/cursos/[id]/page.tsx deja de incluir `submodules: true` en el select de `prisma.courses.findUnique` (línea 82); el `Course` interface del archivo (líneas 21-45) elimina el campo `submodules: submodules[]` y quita `submodules` del import de `@uakari/database` (línea 12)",
+        "apps/admin/app/cursos/components/FormEdit/FormEditCourse.tsx elimina el campo `submodules: submodules[]` del `Course` interface (líneas 53-54) y quita `submodules` del import de `@uakari/database` (línea 21)",
+        "apps/admin/app/cursos/components/FormEdit/Summary.tsx elimina el campo `submodules: submodules[]` del `Course` interface (línea 33) y quita `submodules` del import de `@uakari/database` (línea 11)",
+        "apps/admin/app/cursos/components/FormEdit/formEditResources.tsx elimina el campo `submodules: submodules[]` del `Course` interface (línea 37) y quita `submodules` del import de `@uakari/database` (línea 11)",
+        "apps/admin/app/cursos/components/FormEdit/utils.ts elimina el campo `submodules: submodules[]` del `Course` interface (línea 29) y quita `submodules` del import de `@uakari/database` (línea 9)",
+        "apps/admin/app/cursos/components/FormEdit/Summary.tsx:48-55 reescribe `countVideosByModule` para que retorne 1 si el curso tiene `video_id` distinto de null, o 0 en caso contrario; el conteo de 'Recursos' en la card pasa a ser `countAllResources(course) + (course.video_id ? 1 : 0)` (no itera submodules)",
+        "grep -n 'submodules' apps/admin/app/cursos/[id]/page.tsx apps/admin/app/cursos/components/FormEdit/*.tsx apps/admin/app/cursos/components/FormEdit/utils.ts no encuentra ningún uso del modelo submodules desde admin (residuo legacy eliminado)",
+        "grep -rn 'submodules:' apps/admin/app no encuentra ninguna ocurrencia (el campo fue removido de las interfaces Course)",
+        "npx turbo run build --filter=admin termina sin errores de TypeScript y la página /cursos/[id] renderiza el acordeón de módulos con sus recursos y su evaluation sin warnings de runtime"
       ],
       "sdd": true,
       "status": "pending"
     },
     {
-      "id": 4,
-      "name": "add_todo_form",
-      "title": "Formulario para agregar tareas",
-      "description": "Formulario con input y botón para crear nuevas tareas.",
+      "id": 15,
+      "name": "admin_remove_submodule_legacy_ui",
+      "title": "Eliminar UI legacy de submódulo y WIPBanner en gestión de preguntas",
+      "description": "La página de gestión de preguntas de evaluación en admin quedó con un WIPBanner ('Esta sección está siendo adaptada al nuevo sistema de submódulos') y todo el flujo de selección de submódulo (state submoduleID, useEffect de sessionStorage, ListSelect chooseSubmodule) pese a que las evaluations son a nivel módulo desde la feature #1. Limpia ese residuo del refactor para que la página refleje el modelo actual Curso → Módulo → Evaluation.",
       "acceptance": [
-        "Existe src/components/AddTodo.tsx con input y botón",
-        "Al enviar, crea nueva tarea y limpia el input",
-        "Valida que el título no esté vacío",
-        "tests/AddTodo.test.tsx cubre éxito y validación"
+        "apps/admin/app/evaluaciones/preguntas/Menu.tsx elimina el state `submoduleID` y el setter `setSubmoduleID` (línea 43) junto con el import asociado",
+        "apps/admin/app/evaluaciones/preguntas/Menu.tsx elimina el handler `handleChangeSubmodule` (líneas 96-101) por completo",
+        "apps/admin/app/evaluaciones/preguntas/Menu.tsx elimina el `useEffect` que lee/escribe `id_submodule` de sessionStorage (líneas 127-134) y la línea 147 de `sessionStorage.removeItem('id_submodule')`",
+        "apps/admin/app/evaluaciones/preguntas/Menu.tsx elimina el computed `submodulesForSelectedCourse` (líneas 166-174) y la prop `submodules` del `Props` (líneas 28-32) junto con el campo `submodules: { id, name }[]` del tipo de `course.course_modules[].modules`",
+        "apps/admin/app/evaluaciones/preguntas/Menu.tsx elimina el bloque JSX del `<ListSelect name='chooseSubmodule'>` (líneas 204-212) y el render del WIPBanner con SVG y mensaje 'Esta sección está siendo adaptada al nuevo sistema de submódulos' (líneas 244-269)",
+        "apps/admin/app/evaluaciones/preguntas/Menu.tsx ajusta el `<h1>` (línea 183) de 'Selecciona Curso y Submódulo' a 'Selecciona Curso y Módulo'",
+        "apps/admin/app/evaluaciones/preguntas/page.tsx la query de Prisma elimina el `submodules: { select: { id, name } }` del select del módulo (líneas 24-29) para que ya no traiga esa data innecesaria",
+        "npx turbo run build --filter=admin termina sin errores; abrir /evaluaciones/preguntas autenticado como admin muestra el menú Curso→Módulo→Evaluation limpio, sin WIPBanner, sin selector de submódulo; seleccionar un módulo con evaluation carga la lista de preguntas; seleccionar un módulo sin evaluation muestra la redirección al form de creación de evaluation"
+      ],
+      "sdd": true,
+      "dependencies": [14],
+      "status": "pending"
+    },
+    {
+      "id": 16,
+      "name": "admin_module_video_endpoints",
+      "title": "Endpoints backend para video a nivel módulo + FK videos.module_id",
+      "description": "El modelo actual solo permite videos a nivel course (videos.course_id) y los videos de submódulo usan video_url (YouTube embed, no Cloudflare). El admin necesita poder asociar un video Cloudflare Stream a un módulo concreto. Crea el modelo real '1 video por módulo' con FK opcional videos.module_id y endpoints CRUD con auth endurecida, y elimina los dos endpoints deprecated 410.",
+      "acceptance": [
+        "packages/database/prisma/schema.prisma añade al modelo `videos` el campo `module_id Int?` con `@relation(name: 'module_videos', fields: [module_id], references: [id], onDelete: SetNull, onUpdate: NoAction)`; el modelo `modules` añade la relación inversa `videos videos[] @relation(name: 'module_videos')`",
+        "Existe packages/database/prisma/migrations/<timestamp>_module_video/migration.sql con el ALTER TABLE videos ADD COLUMN module_id INT REFERENCES modules(id) ON DELETE SET NULL más el índice; `npm run migrate:dev` la aplica sin errores sobre una BD limpia del docker-compose.yaml",
+        "npx turbo run generate --filter=@uakari/database regenera el cliente Prisma sin errores y los tipos exportados reflejan `videos.module_id` y `modules.videos`",
+        "apps/services/src/app/v1/videos/create/route.ts (POST) acepta `{cloudflare_id, title, module_id}`, llama `getVideoDuration(cloudflare_id)`, crea la fila en `videos` con `module_id` y devuelve 201 con el video creado; invoca `checkRolWithAuth(['admin','root','professor'], auth)` antes (401/403)",
+        "apps/services/src/app/v1/videos/module/[module_id]/route.ts (GET) devuelve el video del módulo vía `prisma.videos.findFirst({where: {module_id}})` o 404; `checkRolWithAuth` con los mismos roles; cualquier user autenticado puede GET (solo lecturas)",
+        "apps/services/src/app/v1/videos/module/[module_id]/[video_id]/route.ts (PUT) reemplaza el video del módulo: dentro de un prisma.$transaction pone `module_id` en `video_id` y limpia el `module_id` del video anterior si era único; `checkRolWithAuth` con los roles de escritura",
+        "apps/services/src/app/v1/videos/module/[module_id]/route.ts (DELETE) desasocia: pone `module_id = null` en el video (no borra la fila) y devuelve 200; `checkRolWithAuth` con los roles de escritura",
+        "apps/services/src/app/v1/videos/modules/route.tsx y apps/services/src/app/v1/videos/edit/[module_id]/[video_id]/route.ts (los dos que devuelven 410) están eliminados del filesystem",
+        "npx turbo run build --filter=services termina sin errores; curl con admin token contra POST /v1/videos/create crea fila con module_id NOT NULL; curl sin token devuelve 401, con student devuelve 403, con admin/professor devuelve 201"
       ],
       "sdd": true,
       "status": "pending"
     },
     {
-      "id": 5,
-      "name": "todo_page",
-      "title": "Página principal de tareas",
-      "description": "Página NextJS que integra formulario y lista de tareas.",
+      "id": 17,
+      "name": "api_client_module_video",
+      "title": "Adaptar @uakari/api-client a los nuevos endpoints de video por módulo",
+      "description": "El cliente API actual expone createVideoModule que pega contra /v1/videos/modules (endpoint 410 deprecated) y updateVideoData con firma de module_id muerto. Añade las nuevas funciones contra los endpoints de feature #16 y elimina las funciones muertas para que ningún consumidor quede pegando a 410.",
       "acceptance": [
-        "Existe src/app/page.tsx que renderiza AddTodo y TodoList",
-        "La página carga tareas de localStorage al montar",
-        "Al agregar tarea, la lista se actualiza automáticamente",
-        "tests/page.test.tsx cubre integración"
+        "packages/api-client/src/videos.ts exporta `createModuleVideo(moduleId, cloudflareId, title, token)` que pega POST a /v1/videos/create con body {cloudflare_id, title, module_id}",
+        "packages/api-client/src/videos.ts exporta `getModuleVideo(moduleId, token)` que pega GET a /v1/videos/module/[module_id] y devuelve Result<Video | null, ...>",
+        "packages/api-client/src/videos.ts exporta `replaceModuleVideo(moduleId, videoId, cloudflareId, title, token)` que pega PUT a /v1/videos/module/[module_id]/[video_id]",
+        "packages/api-client/src/videos.ts exporta `deleteModuleVideo(moduleId, token)` que pega DELETE a /v1/videos/module/[module_id]",
+        "packages/api-client/src/videos.ts elimina la función `createVideoModule` (apuntaba a /v1/videos/modules 410); grep -r en el repo (apps/admin, apps/web, packages) no encuentra ningún import residual de createVideoModule",
+        "packages/api-client/src/videos.ts elimina la firma vieja de `updateVideoData` con parámetros `update_position` y `position` (residuo legacy); solo queda un updateVideoData(videoId, data, token) o se borra completamente si no hay consumidores en la rama nueva",
+        "packages/api-client/src/videos.ts exporta el tipo `ModuleVideo` con la forma del video asociado a un módulo (id, cloudflare_id, title, duration, requires_token)",
+        "npx turbo run build termina sin errores en el monorepo completo y los tipos consumidos por apps/admin siguen compilando tras la migración a las nuevas funciones"
+      ],
+      "sdd": true,
+      "dependencies": [16],
+      "status": "pending"
+    },
+    {
+      "id": 18,
+      "name": "admin_module_video_upload_ui",
+      "title": "UI admin para subir, previsualizar y reemplazar video del módulo",
+      "description": "Hoy el modal de crear recurso en admin ofrece 'video' como opción (resourceCreateModal) pero ese flujo llama createVideoModule que apunta al endpoint 410. Refactor del acordeón de módulos: añade un bloque dedicado 'Video del módulo' con su UploadVideo, preview con Stream/LazyVideoPlayer, y botones Reemplazar/Eliminar. Quita 'video' del resourceCreateModal.",
+      "acceptance": [
+        "apps/admin/app/cursos/components/FormEdit/formEditResources.tsx dentro del bloque `isOpen` de cada módulo añade una nueva sección 'Video del módulo' antes de 'Recursos', que muestra: si module.video existe, miniatura con `Stream` de cloudflare_id + botones 'Reemplazar' y 'Eliminar'; si no existe, un botón 'Subir video' que abre un `UploadVideo` inline (no modal)",
+        "El botón 'Reemplazar' abre el mismo `UploadVideo` inline con `pushToDatabase={false}`; al terminar (onVideoUpload) llama `replaceModuleVideo(moduleId, videoId, cloudflare_id, title, token)` y hace `router.refresh()`",
+        "El botón 'Eliminar' pide confirmación con swal y llama `deleteModuleVideo(moduleId, token)`; al terminar hace `router.refresh()`",
+        "El botón 'Subir video' (cuando no hay video) usa `UploadVideo` con `pushToDatabase={false}`; al callback onVideoUpload llama `createModuleVideo(moduleId, cloudflare_id, title, token)` y hace `router.refresh()`",
+        "apps/admin/app/cursos/components/FormEdit/resourceCreateModal.tsx elimina el `value='video'` del segundo botón (línea 320) y toda la rama del if `resourceChoosed === 'video'` (líneas 82-121) que llama createVideoModule; el modal solo ofrece Documento y Evaluación como opciones",
+        "apps/admin/app/cursos/components/FormEdit/LazyVideoPlayer.tsx se elimina del filesystem (sigue huérfano tras el refactor) o se reasigna como el preview inline del video del módulo si se decide reutilizarlo; si se reutiliza, el componente acepta `cloudflareId` y se monta en el nuevo bloque",
+        "npx turbo run build --filter=admin termina sin errores; abrir /cursos/[id] autenticado como admin muestra por cada módulo el bloque 'Video del módulo' con su estado (video actual, sin video, subiendo); subir un video de prueba desde ahí crea fila en `videos` con `module_id` no nulo y la previsualización muestra el video de Cloudflare"
+      ],
+      "sdd": true,
+      "dependencies": [17],
+      "status": "pending"
+    },
+    {
+      "id": 19,
+      "name": "s3_endpoints_auth_hardening",
+      "title": "Endurecer auth en los 10 endpoints /v1/s3/* abiertos al público",
+      "description": "La feature #8 agregó checkRolWithAuth a /v1/module/*, /v1/submodule/*, /v1/resource/* y /v1/professor/* pero se olvidó de /v1/s3/*. Cualquiera con la URL puede pedir URLs presigned para subir, descargar o borrar del bucket R2 del LMS. Cierra ese hueco de seguridad.",
+      "acceptance": [
+        "apps/services/src/app/v1/s3/signed_url/route.ts invoca `checkRolWithAuth(['admin','root','professor'], auth)` antes de generar la URL; sin token devuelve 401, con student 403, con admin/professor 200",
+        "apps/services/src/app/v1/s3/upload/route.ts invoca `checkRolWithAuth(['admin','root','professor'], auth)` antes del prisma.resources.create y el modules_resources.create; sin token 401, student 403, admin/professor 201",
+        "apps/services/src/app/v1/s3/delete/route.ts invoca `checkRolWithAuth(['admin','root','professor'], auth)` antes del DeleteObjectCommand; sin token 401, student 403, admin/professor 200",
+        "apps/services/src/app/v1/s3/get/route.ts invoca `auth()` (al menos autenticado) antes de devolver la URL; sin token 401, con cualquier rol autenticado 200",
+        "apps/services/src/app/v1/s3/images/signed_url/route.ts, images/upload/route.ts, images/update/route.ts, images/delete/route.ts invocan `checkRolWithAuth(['admin','root','professor'], auth)`; mismo patrón 401/403/2xx",
+        "apps/services/src/app/v1/s3/images/get/route.ts e images/get_object/route.ts invocan `auth()` (al menos autenticado) para servir URLs presigned de lectura",
+        "grep -n 'checkRolWithAuth\\|auth()' apps/services/src/app/v1/s3/*/route.ts apps/services/src/app/v1/s3/images/*/route.ts confirma que los 10 endpoints tienen al menos una llamada de auth antes de tocar Prisma o el client S3",
+        "npx turbo run build --filter=services termina sin errores; batería de curl documentada en AGENTS.harness.md o en un README del endpoint: 10 endpoints × 3 casos (sin token, student, admin) = 30 respuestas verificadas con códigos esperados"
       ],
       "sdd": true,
       "status": "pending"
     },
     {
-      "id": 6,
-      "name": "delete_todo",
-      "title": "Eliminar tarea",
-      "description": "Permite eliminar una tarea individual con confirmación.",
+      "id": 20,
+      "name": "admin_upload_resource_single_call",
+      "title": "Quitar llamada duplicada de addResourceByID tras uploadResource",
+      "description": "resourceCreateModal.tsx hace uploadResource(file, token, moduleID) que ya crea la fila en resources y la asociación en modules_resources (backend /v1/s3/upload lo hace en una sola transacción), y DESPUÉS llama addResourceByID(moduleID, resourceId, token) que intenta crear el mismo modules_resources. Eso da respuestas espurias (200 'ya está agregado' o 500 si cambia el constraint). Fix de cliente: dejar solo la primera llamada.",
       "acceptance": [
-        "Cada tarea tiene botón de eliminar",
-        "Al hacer click, muestra confirmación antes de eliminar",
-        "Elimina la tarea de localStorage y actualiza la lista",
-        "tests/delete.test.tsx cubre eliminación y cancelación"
+        "apps/admin/app/cursos/components/FormEdit/resourceCreateModal.tsx elimina la llamada `addResourceByID(moduleID, sendModule.val.id, token)` (líneas 135-139) del bloque posterior a `uploadResource`",
+        "Eliminada la llamada, el modal sigue mostrando swal 'Recurso creado con éxito' y haciendo `router.refresh()` cuando `uploadResource` retorna ok",
+        "Se quita el import `addResourceByID` de `@uakari/api-client/modules` (línea 4) si tras el cambio no queda ningún otro uso en el archivo; verificar con grep que no se importa en otros archivos del admin",
+        "Subir un PDF de prueba desde el modal crea exactamente una fila en `resources` y exactamente una fila en `modules_resources` para el (module_id, resource_id) dado; un SELECT COUNT(*) WHERE module_id = X AND resource_id = Y devuelve 1, no 2 ni más",
+        "npx turbo run build --filter=admin termina sin errores; el flujo manual de 'agregar recurso → documento' sigue funcionando y la card del módulo muestra el nuevo recurso tras router.refresh()"
       ],
       "sdd": true,
       "status": "pending"
     },
     {
-      "id": 7,
-      "name": "filter_todos",
-      "title": "Filtrar tareas",
-      "description": "Permite filtrar por: todas, pendientes, completadas.",
+      "id": 21,
+      "name": "admin_ui_logo_cleanup",
+      "title": "Sustituir logo_hero.webp por logo_lms_1.webp en toda la app admin",
+      "description": "El archivo /images/logo_hero.webp no existe en el repo y está referenciado en 7 sitios de apps/admin (modales y signin/signup). La feature #12 cubrió la web del estudiante; esta cierra el lado admin manteniendo dimensiones y clases existentes.",
       "acceptance": [
-        "Existen botones/links para filtrar: All, Active, Completed",
-        "Al seleccionar filtro, muestra solo tareas correspondientes",
-        "El filtro se mantiene al agregar/eliminar tareas",
-        "tests/filters.test.tsx cubre cada filtro"
+        "apps/admin/app/cursos/components/FormEdit/moduleCreateModal.tsx línea 143 sustituye src=`/images/logo_hero.webp` por src=`/images/logo_lms_1.webp`; width=300 height=300 y alt=Logo-Uakari se conservan",
+        "apps/admin/app/cursos/components/FormEdit/moduleRemoveModal.tsx línea 22 sustituye src=`/images/logo_hero.webp` por src=`/images/logo_lms_1.webp`; width=200 height=200 className='m-auto' y alt='logo uakari' se conservan",
+        "apps/admin/app/cursos/components/FormEdit/resourceCreateModal.tsx línea 227 sustituye src=`/images/logo_hero.webp` por src=`/images/logo_lms_1.webp`; width=250 height=250 y alt=Logo-Uakari se conservan",
+        "apps/admin/app/cursos/components/FormEdit/resourceRemoveModal.tsx línea 22 sustituye src=`/images/logo_hero.webp` por src=`/images/logo_lms_1.webp`; width=300 height=300 y alt='logo-uakari' se conservan",
+        "apps/admin/app/cursos/components/FormEdit/confirmSaveModal.tsx línea 23 sustituye src=`/images/logo_hero.webp` por src=`/images/logo_lms_1.webp`; resto del modal sin cambios",
+        "apps/admin/app/evaluaciones/preguntas/showModal.tsx línea 74 sustituye src=`/images/logo_hero.webp` por src=`/images/logo_lms_1.webp`; width=250 height=250 y alt=Logo-Uakari se conservan",
+        "apps/admin/app/auth/sign-in/[[...sign-in]]/page.tsx línea 9 sustituye `logo={`${NEXT_PUBLIC_ADMIN_PREFIX!}/images/logo_hero.webp`}` por `logo={`${NEXT_PUBLIC_ADMIN_PREFIX!}/images/logo_lms_1.webp`}`",
+        "apps/admin/app/auth/sign-up/[[...sign-up]]/page.tsx línea 9 sustituye `logo={`${NEXT_PUBLIC_ADMIN_PREFIX!}/images/logo_hero.webp`}` por `logo={`${NEXT_PUBLIC_ADMIN_PREFIX!}/images/logo_lms_1.webp`}`",
+        "`grep -rn 'logo_hero' apps/admin/app` no encuentra ninguna ocurrencia restante; todos los modales y las páginas de auth muestran el logo_lms_1.webp sin imagen rota en viewport desktop y mobile (375px)"
       ],
       "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 22,
+      "name": "admin_evaluation_form_remove_submodule_select",
+      "title": "Auditar y limpiar residuos de submodule en el form de crear evaluation",
+      "description": "La página de crear evaluation (/evaluaciones/nuevo) y su Form.tsx ya no exponen un select de submódulo, pero conviene auditar y endurecer: el select de módulos debe etiquetarse 'Módulo' y debe detectar si el módulo elegido ya tiene evaluation para evitar crear duplicados (evaluations.module_id es @unique por la feature #1).",
+      "acceptance": [
+        "apps/admin/app/evaluaciones/nuevo/Form.tsx: la prop `Props.coursesList[].course_modules[].modules` se mantiene sin campo `submodules` (auditar: ya no debería estar tras feature #14, pero verificar)",
+        "apps/admin/app/evaluaciones/nuevo/Form.tsx: el `<ListSelect name='moduleChoose'>` mantiene su etiqueta 'Módulo' y su comportamiento disabled hasta seleccionar curso",
+        "apps/admin/app/evaluaciones/nuevo/Form.tsx: añade validación client-side: si el módulo elegido ya tiene evaluation (campo `evaluation: { id }` en el tipo CourseModule), el botón submit se deshabilita con mensaje 'Este módulo ya tiene una evaluación'",
+        "apps/admin/app/evaluaciones/nuevo/page.tsx: la query de Prisma añade al `select` de `modules` el campo `evaluation: { select: { id: true } }` para que el Form pueda detectar el caso duplicado sin un roundtrip extra",
+        "El endpoint POST /v1/professor/evaluations/create sigue creando con module: { connect: { id: module_id } } y devuelve 409 (o 500 con mensaje claro) si el module_id ya tiene evaluation; el Form muestra swal de error en ese caso",
+        "npx turbo run build --filter=admin termina sin errores; crear una evaluation para un módulo que ya tiene una muestra el error y no crea fila duplicada; crear para un módulo libre funciona y navega a /evaluaciones/preguntas"
+      ],
+      "sdd": true,
+      "dependencies": [15],
+      "status": "pending"
+    },
+    {
+      "id": 23,
+      "name": "admin_summary_recursos_count_fix",
+      "title": "Fix del contador de Recursos en CourseSettings.Summary y tests unitarios",
+      "description": "La card 'Resumen' de CourseSettings cuenta 'Lecciones', 'Evaluaciones', 'Recursos' y 'Alumnos'. El conteo de Recursos y Evaluaciones arrastra bugs del modelo legacy (submodules.video_url, course.evaluations.length) y no refleja el modelo módulo-céntrico. Reescribe los cálculos con tests unitarios.",
+      "acceptance": [
+        "apps/admin/app/cursos/components/FormEdit/utils.ts reemplaza `countAllResources` para que retorne exactamente la cantidad de `modules_resources` del curso (suma de `cm.modules.modules_resources.length` sobre todos los course_modules); firma y nombre se mantienen",
+        "apps/admin/app/cursos/components/FormEdit/utils.ts añade `countCourseEvaluations(course)` que retorna la cantidad de módulos con `evaluation !== null` (NO `course.evaluations.length` legacy, que es 0 o incorrecto tras la migración)",
+        "apps/admin/app/cursos/components/FormEdit/utils.ts añade `countCourseVideos(course)` que retorna 1 si `course.video_id !== null` o `course.videos !== null`, 0 en caso contrario",
+        "apps/admin/app/cursos/components/FormEdit/Summary.tsx reescribe el render: Lecciones = `course.course_modules.length`, Evaluaciones = `countCourseEvaluations(course)`, Recursos = `countAllResources(course) + countCourseVideos(course)`, Alumnos = `totalStudents` (sin cambios)",
+        "Existe un test unitario en apps/admin/app/cursos/components/FormEdit/utils.test.ts (o el lugar que use el repo) que cubre: countAllResources con 0/N modules_resources; countCourseEvaluations con 0/N modules con evaluation; countCourseVideos con y sin video_id; y un caso end-to-end Summary que verifica los 4 números renderizados",
+        "`npx turbo run test --filter=admin` (o el script equivalente) ejecuta los tests y todos pasan",
+        "npx turbo run build --filter=admin termina sin errores; abrir /cursos/[id] de un curso con 3 módulos (1 con evaluation, 2 con resources), 5 recursos y video de presentación, muestra '3 Lecciones / 1 Evaluaciones / 6 Recursos / N Alumnos' en la card Resumen"
+      ],
+      "sdd": true,
+      "dependencies": [14],
       "status": "pending"
     }
   ]

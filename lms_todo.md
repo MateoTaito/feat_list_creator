@@ -40,11 +40,112 @@ Todas llevan `sdd: true`.
 | 6 | `course_approval_schema_and_backend` | `done` | ✅ | Schema delta: `courses.approval_threshold Float @default(0.6)` + `student_courses.approved Boolean @default(false)`. Recálculo de `approved` al persistir `evaluation_result` (función reutilizable invocada dentro del `$transaction`). |
 | 7 | `web_ui_module_test_gate_and_dual_progress` | `done` | ✅ | Util compartido `packages/common/src/progress.ts` (elimina 3 cálculos duplicados). Gate del botón "Test del módulo": oculto / deshabilitado / habilitado. UI estudiante muestra dos métricas: barra de progreso (visitas) y badge "Curso aprobado". |
 | 8 | `cleanup_preexisting_bugs` | `done` | ✅ | Fix del cálculo erróneo en `mis-cursos/page.tsx` (dividía entre módulos en vez de submódulos). Agrega `checkRolWithAuth` a endpoints `/v1/module/*`, `/v1/submodule/*`, `/v1/resource/*`, `/v1/professor/*` que estaban sin auth. |
-| 9 | `deseados_hero_banner_and_background` | `pending` | ✅ | Reemplaza fondo roto (`fondoCursos.webp` no existe) por `fondo-cursos.webp` (el de /cursos) y añade hero/header banner con título "Mi lista" + imagen decorativa al estilo del sitio. |
-| 10 | `deseados_filters_chips_search_price` | `pending` | ✅ | Extrae lógica de filtros a hook `useDeseadosFilters`, rediseña sidebar con chips por categoría/profesor, añade input de búsqueda y rango de precio CLP, drawer en mobile. |
+| 9 | `deseados_hero_banner_and_background` | `done` | ✅ | Reemplaza fondo roto (`fondoCursos.webp` no existe) por `fondo-cursos.webp` (el de /cursos) y añade hero/header banner con título "Mi lista" + imagen decorativa al estilo del sitio. |
+| 10 | `deseados_filters_chips_search_price` | `done` | ✅ | Extrae lógica de filtros a hook `useDeseadosFilters`, rediseña sidebar con chips por categoría/profesor, añade input de búsqueda y rango de precio CLP, drawer en mobile. |
 | **11** | `certificados_redesign` | `pending` | ✅ | Rediseño completo de /mis-cursos/certificados: hero/header con FuturaExtraBlack, miniatura del certificado en cada card, badges por tipo (oro/plata/lms-blue/gris), botón de descarga con color lms-blue, estados vacío/error con la paleta del sitio. PDF generation intacta. |
 | **12** | `login_lms_logo_sizing_fix` | `pending` | ✅ | Corrige logo sobredimensionado en signin (logoPlacement: 'outside' + h-20 via elements Clerk) y sustituye las 4 referencias rotas a logo_hero.webp por logo_lms_1.webp en signup, resultado de evaluación y TransactionHandler. |
 | **13** | `evaluacion_view_redesign` | `pending` | ✅ | Rediseño completo de la vista de tests: background-wrap+hero-bg en vez de evaluation-image (clase CSS inexistente), TestIntro limpio, cards por pregunta con respuestas clickeables, badge aprobado/reprobado en resultado, breadcrumb, tipografías y paleta del sitio. |
+
+---
+
+## Fase 2 — Refactor admin (pendiente de aprobación)
+
+Continuación del refactor mayor. Las features 1-8 migraron schema + backend +
+api-client, y los endpoints de admin. **Pero la app `apps/admin` quedó a
+medio migrar y el flujo de subida de videos/recursos no funciona** en
+algunos caminos. Este bloque cubre lo que falta para terminar el
+refactor + endurecer S3 + cubrir las nuevas subidas.
+
+### Estado real encontrado (auditoría del repo LMS)
+
+- `apps/admin/app/cursos/[id]/page.tsx`, `FormEditCourse.tsx`,
+  `Summary.tsx`, `formEditResources.tsx`, `utils.ts` siguen tipando el
+  `Course` con `submodules: submodules[]` aunque ya no se usen para
+  evaluaciones/recursos. Es residuo legacy.
+- `apps/admin/app/cursos/components/FormEdit/Summary.tsx:48-55` itera
+  `courseModule.modules.submodules` contando `sm.video_url` para
+  "Recursos". Con el modelo nuevo ese conteo es 0/erróneo (los videos
+  viven en `videos` por `courses`).
+- `apps/admin/app/evaluaciones/preguntas/Menu.tsx:244-269` renderiza un
+  **WIPBanner** ("Esta sección está siendo adaptada al nuevo sistema
+  de submódulos") cuando no hay evaluation para el módulo. La feature
+  #4 se marcó `done` pero dejó este banner.
+- `apps/admin/app/evaluaciones/preguntas/Menu.tsx` aún tiene todo el
+  estado de `submoduleID` y el `<ListSelect name="chooseSubmodule">`,
+  pero ese dato ya no se usa (las evaluations son a nivel módulo).
+- `resourceCreateModal.tsx:99-104` llama
+  `createVideoModule(videoId, title, moduleID, token)` que pega contra
+  `/v1/videos/modules` y ese endpoint **devuelve 410 deprecated**
+  (ver `apps/services/src/app/v1/videos/modules/route.tsx:3-10`).
+  La subida de video desde el botón "video" del resourceCreateModal
+  está rota.
+- `LazyVideoPlayer.tsx` (apps/admin) **no se importa en ningún
+  archivo del repo** → componente huérfano.
+- `apps/admin/app/evaluaciones/components/evaluationsTable.tsx:173-189`
+  usa `router.push("/evaluaciones/preguntas")` (válido) y guarda
+  `id_evaluation`+`id_module` en sessionStorage. Este flujo sí está
+  bien, pero la página destino muestra el WIPBanner.
+- **Auth bypass masivo en S3**: `apps/services/src/app/v1/s3/*` (10
+  endpoints: `delete`, `get`, `upload`, `signed_url`,
+  `images/delete`, `images/get`, `images/get_object`,
+  `images/signed_url`, `images/update`, `images/upload`) **NO llaman
+  `checkRolWithAuth`**. Cualquiera con la URL puede pedir URLs
+  presigned para subir/bajar/borrar del bucket R2. La feature #8
+  endureció `/v1/module/*`, `/v1/submodule/*`, `/v1/resource/*`,
+  `/v1/professor/*` pero se olvidó de `/v1/s3/*`.
+- `app/cursos/[id]/page.tsx:127` usa
+  `bg-[url(/admin/images/fondo_curso_1.webp)]` y el layout tiene
+  ese fondo embebido en la prop `className` (no en CSS). No es bug,
+  pero la imagen `/admin/images/fondo_curso_1.webp` debe existir
+  (verificar antes de tocar).
+
+### Features planificadas (#14 en adelante)
+
+| # | Nombre | sdd | Descripción breve |
+|---|--------|-----|-------------------|
+| **14** | `admin_query_drop_submodules` | ✅ | Quita `submodules` del SELECT/typing en `apps/admin/app/cursos/[id]/page.tsx`, `FormEditCourse.tsx`, `Summary.tsx`, `formEditResources.tsx`, `utils.ts`. La query de `prisma.courses.findUnique` deja de traer `submodules`; los tipos del `Course` ya no exponen `submodules`; el bug del contador "Recursos" en `Summary.tsx` se corrige contando solo `modules_resources` + 1 video de presentación si existe. |
+| **15** | `admin_remove_submodule_legacy_ui` | ✅ | Elimina de `apps/admin/app/evaluaciones/preguntas/Menu.tsx` todo el submódulo: state `submoduleID`, `useEffect` de sessionStorage `id_submodule`, el `ListSelect name="chooseSubmodule"`, la prop `submodulesForSelectedCourse` y el WIPBanner ("adaptada al nuevo sistema de submódulos"). Deja el menú limpio Curso→Módulo→Evaluation. La prop `submodules` en `Props` de Menu desaparece. |
+| **16** | `admin_module_video_endpoints` | ✅ | Crea el modelo real "1 video Cloudflare por módulo": migration Prisma `videos.module_id Int?` + FK opcional, relación inversa `modules.video`. Endpoints nuevos `POST /v1/videos/create` (cuerpo: `{cloudflare_id, title, module_id}`, crea fila en `videos` con duración calculada por `getVideoDuration`), `GET /v1/videos/module/[module_id]` (devuelve el video del módulo o null), `PUT /v1/videos/module/[module_id]/[video_id]` (reemplaza), `DELETE /v1/videos/module/[module_id]` (limpia el campo y borra fila en `videos` si no la usa otro módulo). Todos con `checkRolWithAuth(['admin','root','professor'])`. **Elimina del filesystem** `apps/services/src/app/v1/videos/modules/route.tsx` y `apps/services/src/app/v1/videos/edit/[module_id]/[video_id]/route.ts` (los dos 410 deprecated). |
+| **17** | `api_client_module_video` | ✅ | Añade en `packages/api-client/src/videos.ts` las funciones `createModuleVideo(moduleId, cloudflareId, title, token)`, `getModuleVideo(moduleId, token)`, `replaceModuleVideo(moduleId, videoId, cloudflareId, title, token)`, `deleteModuleVideo(moduleId, token)`. Pegan a los nuevos endpoints de feature #16. Tipos `ModuleVideo` exportados. Elimina del api-client `createVideoModule` (el que apuntaba al endpoint 410) y `updateVideoData` con firma de `module_id` muerto. `npx turbo run build` sin errores. |
+| **18** | `admin_module_video_upload_ui` | ✅ | Reescribe `apps/admin/app/cursos/components/FormEdit/formEditResources.tsx`: en el acordeón del módulo añade un bloque "Video del módulo" con su propio `UploadVideo` (con `pushToDatabase=false` para que solo suba a Cloudflare), previsualización con `Stream` o `LazyVideoPlayer`, y botones "Reemplazar"/"Eliminar" que invocan las funciones de feature #17. `resourceCreateModal.tsx` deja de ofrecer "video" como opción dentro de "Agregar recurso" (eso ya es tarea del nuevo bloque). **Borra** `LazyVideoPlayer.tsx` (sigue huérfano) o reemplázalo por el nuevo wrapper de previsualización inline. |
+| **19** | `s3_endpoints_auth_hardening` | ✅ | Agrega `checkRolWithAuth(['admin','root','professor'])` a los 10 endpoints `/v1/s3/*` que están sin auth: `s3/delete`, `s3/get`, `s3/signed_url`, `s3/upload`, `s3/images/delete`, `s3/images/get`, `s3/images/get_object`, `s3/images/signed_url`, `s3/images/update`, `s3/images/upload`. Tests: curl sin token → 401, con student → 403, con admin/professor → 2xx. `npx turbo run build --filter=services` sin errores. |
+| **20** | `admin_upload_resource_single_call` | ✅ | `resourceCreateModal.tsx` actualmente hace `uploadResource(...)` que ya crea el `modules_resources`, y **luego** llama `addResourceByID(...)` que intenta crear el mismo `modules_resources` y recibe 200/500 espurios. Refactor del cliente: `uploadResource` sigue creando fila + `modules_resources` en una sola llamada (no tocar el backend); `addResourceByID`/`deleteResourceByID` se mantienen para futuras re-asociaciones pero el modal ya no los llama en el flujo de "agregar recurso". El bug es de cliente: borrar la segunda llamada. |
+| **21** | `admin_ui_logo_cleanup` | ✅ | Sustituye las 5 referencias a `/images/logo_hero.webp` (no existe) en `apps/admin` por `/images/logo_lms_1.webp` con `NEXT_PUBLIC_ADMIN_PREFIX` cuando aplique: `moduleCreateModal.tsx:143`, `moduleRemoveModal.tsx:22`, `resourceCreateModal.tsx:227`, `resourceRemoveModal.tsx:22`, `showModal.tsx:74`, `confirmSaveModal.tsx:23`. También en `auth/sign-in/[[...sign-in]]/page.tsx:9` y `auth/sign-up/[[...sign-up]]/page.tsx:9`. (La feature #12 cubre la web; esta cubre admin.) Mantener dimensiones/clases existentes. |
+| **22** | `admin_evaluation_form_remove_submodule_select` | ✅ | `apps/admin/app/evaluaciones/nuevo/Form.tsx` y la query de `evaluaciones/nuevo/page.tsx` aún permiten elegir módulo; el submodule no aparece aquí, pero la `Props.coursesList[].course_modules[].modules` debería quitar cualquier referencia residual. Auditar: no hay `submodule` en este flujo, pero verificar que `modules.evaluation` (nullable) está disponible y se muestra "ya tiene evaluation" en el select. |
+| **23** | `admin_summary_recursos_count_fix` | ✅ | `apps/admin/app/cursos/components/FormEdit/Summary.tsx:48-55` cuenta `submodules.video_url` (modelo viejo). Reescribir `countAllResources`/`countVideosByModule` para que la card de "Resumen" muestre: Lecciones = `course_modules.length`, Evaluaciones = `modules.filter(m => m.evaluation !== null).length`, Recursos = `modules_resources.length` + 1 si `course.video_id !== null` (video presentación). La función vive en `utils.ts` con tests unitarios del cálculo. |
+
+### Dependencias entre features nuevas
+
+```
+#14  #15  #20  #21  #22  #23   (independientes, todas UI/admin-only)
+   \  |  /          |   /
+    \ | /           |  /
+   #16 ──> #17 ──> #18       (cadena videos)
+              #19            (independiente, endurece S3)
+```
+
+### Criterio de cierre del bloque
+
+- `npx turbo run build` (monorepo completo) sin errores.
+- `npx turbo run typecheck` (si existe) sin errores.
+- `grep -r "submodules:" apps/admin/app` → 0 ocurrencias (excepto imports de tipos que ya no se usen → también 0).
+- `grep -r "logo_hero" apps/admin/app` → 0 ocurrencias.
+- `grep -r "/v1/videos/modules" apps/admin` → 0 ocurrencias.
+- `curl` manual a `/v1/s3/upload` sin token → 401; con student → 403; con admin → 201.
+- Flujo manual en admin: crear curso → agregar módulo → subir PDF como recurso (queda en `modules_resources`) → subir video de módulo (queda en `videos` con `module_id`) → asignar evaluation al módulo (queda en `evaluations.module_id`) → eliminar todo y verificar que no quedan filas huérfanas.
+
+### Riesgos y notas
+
+- **Submodules no se eliminan de la web del estudiante** (siguen
+  mostrando `submodule.video_url` YouTube en `SubmoduleView.tsx`).
+  Eso queda fuera de este bloque (sería otro refactor mayor). Aquí
+  solo limpiamos admin.
+- **El `seeder` aún crea submodules** (`packages/database/src/seed.ts:108`).
+  Si las features 14-23 eliminan `submodules` del typing de admin,
+  el seeder sigue siendo válido para web. No tocar.
+- **`feature #4 marked done pero dejó WIPBanner + submodules en typing
+  de admin** — esto es un bug de aceptación. Las features 14, 15
+  cierran ese gap.
 
 ---
 
