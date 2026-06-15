@@ -35,7 +35,9 @@ es solo buffer / borrador).
 - Postgres + Prisma (`@uakari/database`).
 - Cloudflare Stream (videos de módulo y de presentación) + R2/S3
   (recursos de módulo, imágenes de curso/profesor).
-- Shopify (cursos comprables, `shopify_id` y `shopify_handle`).
+- Shopify (legacy — la web paga con Transbank, no con Shopify; `shopify_id`
+  y `shopify_handle` en `courses` son residuo de una integración anterior
+  y nadie los lee después del write).
 - Transbank (pagos).
 - Joi para validación de payloads en services.
 - SWR para fetch en web/admin.
@@ -55,8 +57,12 @@ es solo buffer / borrador).
   `packages/database/src/recalculateApproval.ts` cada vez que se
   persiste un `evaluation_result`.
 - `submodules` SIGUE en el schema (lo consume la web para YouTube
-  embeds en `SubmoduleView.tsx`). El seeder los sigue creando. NO
-  eliminar en features nuevas.
+  embeds en `SubmoduleView.tsx`). El seeder los sigue creando.
+  Endpoint `POST /v1/submodule/create` (autenticado, #8) y
+  `SubmoduleCreateModal` (230 líneas, huérfano hasta #32) ya existen;
+  #32 lo wirea en `formEditResources.tsx` con un botón "Agregar
+  Submódulo" en la sección por módulo. NO eliminar en features
+  nuevas — la web lo necesita.
 
 ## Auth
 
@@ -160,6 +166,7 @@ para features de schema + migración.
 - `cloudflare_id` y `title` del video de presentación se determinan
   en el cliente a partir del nombre del curso (no hay input de
   título propio en el form de crear/editar curso).
-- `getHandle(shopify_id)` se llama solo si `shopify_id` está presente;
-  si la API de Shopify falla, el handle queda `undefined` y el curso
-  se crea igual.
+- `getHandle(shopify_id)` se llama solo si `shopify_id` no está vacío
+  (soft deprecado en #29 — antes era required, ahora es opcional con
+  nota "legacy" en el form). Si la API de Shopify falla, el handle
+  queda `undefined` y el curso se crea igual.

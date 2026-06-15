@@ -188,19 +188,31 @@ que la #19 cerró para `/v1/s3/*`).
 | **26** | `admin_edit_course_endpoint_hardening` | ✅ | Cierra dos bugs preexistentes de `PUT /v1/course/edit/[id]/route.ts`: (1) agrega `checkRolWithAuth(['admin','root','professor'])` al inicio del handler (mismo patrón que #24); (2) extrae `approval_threshold` del FormData (que `FormEditCourse.tsx:154-168` sí manda) y lo incluye en el `prisma.courses.update` con validación de rango [0,1]. Antes del fix, editar el umbral en CourseSettings y "Actualizar Información" no persistía el cambio silenciosamente. |
 | **27** | `admin_create_course_form_redesign` | ✅ | Refactor del `apps/admin/app/cursos/nuevo/Form.tsx` monolítico al patrón seccionado que ya usa la edición (`bg-white/70 rounded-xl p-6 mb-6`). Crea 3 sub-componentes: `CourseBasicInfo.tsx` (name, shopify_id, price, profesor, dificultad, categoría, image, descripción), `PresentationVideo.tsx` (UploadVideo sin preview), `CourseSettings.tsx` (campo approval_threshold de #25). El `Form.tsx` queda como orquestador. Depende de #25. |
 | **28** | `admin_create_course_validation_hardening` | ✅ | Endurece el `handleSubmit` con validación por campo: trim+non-empty en name/shopify_id/description, max length (255/8192), price > 0, image tipo `image/*` y <5MB, mensajes específicos con `swal` por cada fallo. Cambia `disabled={withVideo && !isVideoFinished}` por `disabled={isValidating || !isFormValid}`. Feedback visual: `border-red-500` en inputs inválidos + `<p className="text-red-500 text-sm">` con el mensaje. Depende de #27. |
+| **29** | `admin_create_course_shopify_id_soft_deprecation` | ✅ | Soft deprecation del campo `shopify_id` (residual de una integración Shopify que ya no se usa: la web paga con Transbank, nadie lee `shopify_handle`). El campo se vuelve opcional en el form (con nota visual `(legacy — no se usa en producción)`), en Joi (`.optional().allow("")`) y en el endpoint (`getHandle` solo se llama si `shopify_id` no está vacío). Las columnas en DB se mantienen. Hard remove (drop columns, eliminar `getHandle` util, eliminar `PUT /v1/course/shopify/route.ts`) queda para otra fase. |
+| **30** | `admin_edit_course_wire_module_create` | ✅ | Wire up del `ModuleCreateModal` huérfano (`apps/admin/app/cursos/components/FormEdit/moduleCreateModal.tsx` — 202 líneas con UI y lógica de submit completas, pero **no importado en ningún archivo de `apps/admin/app/cursos/`**) en `ModuleContent.tsx`. Añade un botón "Agregar módulo" + state `moduleCreateOpen` + render condicional del modal. Limpia también el `SubmoduleCreateModal` huérfano que quedó en `formEditResources.tsx:24,359` (paralelo al cleanup de #14-#15). Cierra el gap dejado por #14-#23: sin esta feature, en `/cursos/[id]` no hay forma de agregar módulos nuevos a un curso. |
+| **31** | `admin_create_course_module_creation` | ✅ | Añade una sección "Módulos" inline al form de crear curso (`apps/admin/app/cursos/nuevo/`): nuevo componente `ModulesSection.tsx` con `useState<{name, description}[]>` y botón "Agregar módulo"/"Eliminar". El `handleSubmit` (en `Form.tsx`) crea primero el curso con `sendCourseData`, luego itera sobre los módulos llamando `createModule` + `addModuleByID(newCourse.id, ...)` por cada uno. Swal de éxito o error parcial según el resultado. Depende de #27 (la sección se monta en la estructura seccionada). Complementa a #30: en #30 arreglamos la creación en edición, en #31 permitimos la creación desde el form inicial. |
+| **32** | `admin_edit_course_wire_submodule_create` | ✅ | Wire up del `SubmoduleCreateModal` huérfano (`apps/admin/app/cursos/components/FormEdit/submoduleCreateModal.tsx` — 230 líneas con UI completa y `createSubmodule` + `router.refresh()`, pero **no importado en ningún archivo vivo de `apps/admin/app/`**). En `formEditResources.tsx:250-352` la sección "Submódulos" lista los existentes con reordenar/editar/eliminar, pero **no tiene botón "Agregar Submódulo"** — sin esta feature, no se pueden crear nuevos submódulos para la web. Importa el modal, añade state `creatingSubmoduleModuleId`, botón "Agregar Submódulo", y render condicional. Corrige también el test de #30 (`feature30.test.mts:97-103`) que afirmaba lo contrario (la aserción de #30 era un no-op porque el import nunca existió). El endpoint `POST /v1/submodule/create` ya está implementado y autenticado (#8). |
 
 ### Dependencias entre features nuevas
 
 ```
-#24  #26               (independientes, auth en create/edit)
+#24  #26  #29  #30  #32   (independientes, auth + soft deprecation + wire modales huérfanos)
 
 #25 ──> #27 ──> #28    (cadena: threshold field → form redesign → validation)
+            │
+            └─> #31   (create modules inline, depende de #27)
 ```
 
 #24 y #26 son foundational (seguridad). #25 puede ir en paralelo. #27
 necesita #25 aplicada para que `CourseSettings.tsx` tenga el campo
 approval_threshold que mostrar. #28 necesita #27 para que la
-validación opere sobre la nueva estructura seccionada.
+validación opere sobre la nueva estructura seccionada. #29 es
+independiente y se puede aplicar en cualquier momento; conviene
+hacerla antes de #28 si se quiere evitar que la validación de
+shopify_id se endurezca sobre un campo que se va a deprecar. #30
+y #32 son independientes — los modales ya existen, solo hay que
+conectarlos. #31 depende de #27 (la sección de módulos se monta en
+la nueva estructura seccionada del form).
 
 ### Criterio de cierre del bloque
 
@@ -228,6 +240,25 @@ validación opere sobre la nueva estructura seccionada.
   PresentationVideo, Settings) con styling
   `bg-white/70 rounded-xl p-6 mb-6`, mismo orden visual que la
   versión monolítica.
+- Creación de módulo en edición (#30): abrir /cursos/[id] → "Agregar
+  módulo" → llenar modal → swal de éxito → nueva fila en
+  `course_modules` con el `course_id` correcto. Verificar con
+  `SELECT COUNT(*) FROM course_modules WHERE course_id = X`
+  antes y después.
+- Creación de módulo en creación (#31): crear curso desde
+  `/cursos/nuevo` con 2 módulos en la sección "Módulos" → 1 fila en
+  `courses` + 2 filas en `modules` + 2 filas en `course_modules`
+  con el `course_id` correcto. Verificar con
+  `SELECT m.name FROM modules m JOIN course_modules cm ON cm.module_id = m.id WHERE cm.course_id = X`.
+- Creación de submódulo en edición (#32): abrir /cursos/[id] →
+  sección "Submódulos" de un módulo → "Agregar Submódulo" → llenar
+  modal (name + description; video_url y content opcionales) →
+  swal de éxito → nueva fila en `submodules` con `module_id` y
+  `position` correctos. Verificar con
+  `SELECT name, position FROM submodules WHERE module_id = X ORDER BY position`.
+- Limpieza legacy (#32, opuesto a #30): `grep -rn "SubmoduleCreateModal" apps/admin/app/cursos/components/FormEdit/formEditResources.tsx`
+  muestra el import Y al menos un uso de `<SubmoduleCreateModal ... />` en el JSX
+  (el test de #30 que verificaba lo contrario se actualiza en #32).
 
 ### Riesgos y notas
 
@@ -239,6 +270,22 @@ validación opere sobre la nueva estructura seccionada.
   visual y computed `isFormValid`, queda `sdd: true`.
 - **#24, #25, #26, #27, #28 son todas `sdd: true`** porque tocan el
   endpoint crítico de admin y/o el form con múltiples criterios.
+- **#30 (wire up) es la más barata** de la fase: 1 import + 1 state +
+  1 botón + 1 render condicional. El modal ya está hecho, no hay
+  que tocar `moduleCreateModal.tsx`. Es buen primer PR de un dev
+  nuevo.
+- **#32 (submodule wire up) tiene la misma forma que #30** (1 import +
+  1 state + 1 botón + 1 render condicional + corrección del test de
+  #30). Conviene hacerlas juntas en el mismo PR para no romper el
+  test a medio camino. La web sigue consumiendo
+  `submodule.video_url` y `submodule.content` en `SubmoduleView.tsx`,
+  así que esta feature es necesaria para que el LMS pueda tener
+  contenido real (los dummies del seeder son solo para testing).
+- **#31 (módulos inline en create) es la más riesgosa** de las nuevas:
+  añade un array al FormState, manejo de errores parciales (curso OK
+  pero módulos fallan), y un nuevo sub-componente con su propio
+  state. Conviene implementarla después de que #28 esté estabilizada
+  para no combinar dos cambios grandes en el form al mismo tiempo.
 
 ---
 
