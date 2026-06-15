@@ -149,6 +149,76 @@ refactor + endurecer S3 + cubrir las nuevas subidas.
 
 ---
 
+## Fase 3 — Adaptar crear curso al modelo módulo-céntrico
+
+Continuación del refactor mayor. Las features 14-23 cerraron el lado
+admin (edición de curso, gestión de preguntas, video por módulo,
+endurecimiento S3). **Pero la página de crear curso
+(`apps/admin/app/cursos/nuevo/`) quedó sin adaptar**: el form sigue
+con el patrón monolítico viejo, no expone `approval_threshold` que la
+edición sí tiene en `CourseSettings.tsx`, y el endpoint
+`POST /v1/professor/course` no tiene `checkRolWithAuth` (mismo bypass
+que la #19 cerró para `/v1/s3/*`).
+
+### Estado real encontrado (auditoría del repo LMS)
+
+- `apps/admin/app/cursos/nuevo/Form.tsx` es un único
+  `useState<FormState>` con 9 campos y un único `handleSubmit`. No
+  expone `approval_threshold`.
+- `apps/services/src/app/v1/professor/course/route.ts` (POST) **no
+  llama `checkRolWithAuth`**. Es el endpoint más crítico de admin: en
+  una sola transacción crea fila en `videos`, sube imagen al bucket
+  R2 con `PutObjectCommand`, consume `getHandle` de Shopify y crea
+  fila en `courses`.
+- `apps/services/src/app/v1/professor/course/schema.ts` (Joi) no
+  acepta `approval_threshold`. El form tampoco lo manda.
+- `apps/services/src/app/v1/course/edit/[id]/route.ts` (PUT)
+  **también no tiene `checkRolWithAuth` y no extrae
+  `approval_threshold` del FormData** (aunque `FormEditCourse.tsx`
+  sí lo appendea). Es un bug aparte, fuera de este bloque.
+- El form no usa el patrón seccionado (`bg-white/70 rounded-xl`) que
+  la edición ya adoptó. Es residuo pre-refactor.
+
+### Features planificadas (#24 en adelante)
+
+| # | Nombre | sdd | Descripción breve |
+|---|--------|-----|-------------------|
+| **24** | `admin_create_course_auth_hardening` | ✅ | Agrega `checkRolWithAuth(['admin','root','professor'])` a `apps/services/src/app/v1/professor/course/route.ts` (POST). Replica el patrón de `/v1/professor/evaluations/create` (auth + `userId` para 401/403). Mueve `req.formData()` para que sea posterior al check. `npx turbo run build --filter=services` sin errores. Batería de curl: sin token → 401, student → 403, admin/professor/root → 200. |
+| **25** | `admin_create_course_approval_threshold_field` | ✅ | Suma `approval_threshold` al form de crear curso (`apps/admin/app/cursos/nuevo/Form.tsx`): input `type="number" min=0 max=1 step=0.01`, valor inicial `0.6` (alineado con `@default(0.6)` del schema Prisma). Actualiza `FormState`, `handleChange` (con validación NaN/rango), `handleSubmit` (append al FormData). Backend: `schema.ts` añade `Joi.number().min(0).max(1).optional()` con fallback a `undefined` si vacío; `route.ts` persiste `course.approval_threshold ?? 0.6` en el `prisma.courses.create`. Cierra la fricción de tener que ir a `/cursos/[id]` después de crear para setear el umbral. |
+
+### Dependencias entre features nuevas
+
+```
+#24  #25      (independientes, ambas tocan el endpoint y form)
+```
+
+#24 es foundational (seguridad). #25 puede ir en paralelo o después.
+
+### Criterio de cierre del bloque
+
+- `npx turbo run build --filter=admin --filter=services` sin errores.
+- `curl` manual a `POST /v1/professor/course` con FormData válido:
+  sin token → 401, con student → 403, con admin/professor/root → 200.
+- `curl` con `approval_threshold=1.5` o `=-0.1` → 400 con mensaje Joi.
+- `curl` sin `approval_threshold` en el FormData → 200 con la fila
+  persistida con `0.6`.
+- Crear curso desde `/cursos/nuevo` con threshold `0.8` → fila en
+  `courses` con `0.8` (verificar con
+  `SELECT approval_threshold FROM courses WHERE id = X`).
+
+### Riesgos y notas
+
+- **El endpoint PUT `/v1/course/edit/[id]/route.ts` sigue sin
+  `checkRolWithAuth` y no extrae `approval_threshold`** del FormData.
+  Es bug preexistente que la #14-23 no cubrió. Si se decide cerrar,
+  abriría una #26 (`admin_edit_course_endpoint_hardening`).
+- **El form de crear curso no se rediseñó al patrón seccionado** de
+  la edición. Eso queda fuera de #24 y #25 (sería #27).
+- **#24 y #25 son `sdd: true`** porque tocan el endpoint crítico de
+  admin y un form con múltiples criterios.
+
+---
+
 ## Decisiones de diseño que fijan los acceptance
 
 ### Features 1-8

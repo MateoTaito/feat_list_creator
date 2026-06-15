@@ -4,9 +4,9 @@
 
 Este repo es un **borrador / buffer** para redactar entradas del array
 `features` de un `feature_list.json` consumido por un harness SDD. El
-agente **no implementa código aquí**: solo produce una feature bien
-formada por prompt. El usuario revisa y la mueve a mano al harness de
-destino.
+agente produce una feature bien formada por prompt. Luego el agente añade la feature
+al archivo correspondiente en el proyectode destino y agrega una referencia de las features
+al makdown correspondiente en este repositorio.
 
 Harnesses de referencia cercanos (no se modifican desde aquí):
 
@@ -17,8 +17,6 @@ Harnesses de referencia cercanos (no se modifican desde aquí):
 
 - ❌ **Una sola feature por prompt.** Si el usuario pide varias, produce
   la primera, paras, y esperas confirmación antes de continuar.
-- ❌ **No escribas a `../nextjs-sdd-harness/` ni a `../harness-sdd/`.**
-  Todo lo que generas vive en `feature_list.json` de este repo.
 - ❌ **No marques estados avanzados** (`spec_ready`, `in_progress`,
   `done`). El feature nuevo entra siempre como `"status": "pending"`.
 - ❌ **No inventes detalles del proyecto objetivo.** Si el usuario
@@ -26,8 +24,12 @@ Harnesses de referencia cercanos (no se modifican desde aquí):
   `docs/`, `README*`, o pide clarificación) antes de redactar la
   feature. Acepta specs ambiguas solo si el usuario lo dice
   explícitamente.
-- ✅ **Salida:** un único objeto JSON que se pueda pegar tal cual dentro
-  del array `features` del harness. Nada más.
+- ✅ Cada proyecto sobre el que trabajes **debe tener un archivo proy_todo.md y un archivo
+    proy_memory.md**. Si es que no existe uno de antemano, crealo, si es que existe, guiate
+    con el para entender más rápido el proyecto.
+-- proy_todo.md: Resumen a las features escritas por este repositorio + caracteristicas futuras
+-- proy_memory.md: Resumen del proyecto destino sobre el que se está trabajando con arquitectura,
+    funcionamiento y particularidades para no tener que leerlo por completo siempre.
 
 ## Esquema obligatorio (alineado con el harness)
 
@@ -89,7 +91,7 @@ Tú solo produces `pending`. El resto los gestiona el harness.
 ## Estado actual del repo
 
 - `feature_list.json` existe pero está vacío. No tocar a menos que
-  el usuario lo pida explícitamente (lo normal es entregar la
-  feature suelta para pegarla a mano).
+  el usuario lo pida explícitamente, solo servirá para usar de buffer en
+  casos específicos.
 - No es un repo git, no tiene tests, no tiene build. No inventes
   comandos que no apliquen.
