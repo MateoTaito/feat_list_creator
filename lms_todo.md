@@ -185,37 +185,60 @@ que la #19 cerró para `/v1/s3/*`).
 |---|--------|-----|-------------------|
 | **24** | `admin_create_course_auth_hardening` | ✅ | Agrega `checkRolWithAuth(['admin','root','professor'])` a `apps/services/src/app/v1/professor/course/route.ts` (POST). Replica el patrón de `/v1/professor/evaluations/create` (auth + `userId` para 401/403). Mueve `req.formData()` para que sea posterior al check. `npx turbo run build --filter=services` sin errores. Batería de curl: sin token → 401, student → 403, admin/professor/root → 200. |
 | **25** | `admin_create_course_approval_threshold_field` | ✅ | Suma `approval_threshold` al form de crear curso (`apps/admin/app/cursos/nuevo/Form.tsx`): input `type="number" min=0 max=1 step=0.01`, valor inicial `0.6` (alineado con `@default(0.6)` del schema Prisma). Actualiza `FormState`, `handleChange` (con validación NaN/rango), `handleSubmit` (append al FormData). Backend: `schema.ts` añade `Joi.number().min(0).max(1).optional()` con fallback a `undefined` si vacío; `route.ts` persiste `course.approval_threshold ?? 0.6` en el `prisma.courses.create`. Cierra la fricción de tener que ir a `/cursos/[id]` después de crear para setear el umbral. |
+| **26** | `admin_edit_course_endpoint_hardening` | ✅ | Cierra dos bugs preexistentes de `PUT /v1/course/edit/[id]/route.ts`: (1) agrega `checkRolWithAuth(['admin','root','professor'])` al inicio del handler (mismo patrón que #24); (2) extrae `approval_threshold` del FormData (que `FormEditCourse.tsx:154-168` sí manda) y lo incluye en el `prisma.courses.update` con validación de rango [0,1]. Antes del fix, editar el umbral en CourseSettings y "Actualizar Información" no persistía el cambio silenciosamente. |
+| **27** | `admin_create_course_form_redesign` | ✅ | Refactor del `apps/admin/app/cursos/nuevo/Form.tsx` monolítico al patrón seccionado que ya usa la edición (`bg-white/70 rounded-xl p-6 mb-6`). Crea 3 sub-componentes: `CourseBasicInfo.tsx` (name, shopify_id, price, profesor, dificultad, categoría, image, descripción), `PresentationVideo.tsx` (UploadVideo sin preview), `CourseSettings.tsx` (campo approval_threshold de #25). El `Form.tsx` queda como orquestador. Depende de #25. |
+| **28** | `admin_create_course_validation_hardening` | ✅ | Endurece el `handleSubmit` con validación por campo: trim+non-empty en name/shopify_id/description, max length (255/8192), price > 0, image tipo `image/*` y <5MB, mensajes específicos con `swal` por cada fallo. Cambia `disabled={withVideo && !isVideoFinished}` por `disabled={isValidating || !isFormValid}`. Feedback visual: `border-red-500` en inputs inválidos + `<p className="text-red-500 text-sm">` con el mensaje. Depende de #27. |
 
 ### Dependencias entre features nuevas
 
 ```
-#24  #25      (independientes, ambas tocan el endpoint y form)
+#24  #26               (independientes, auth en create/edit)
+
+#25 ──> #27 ──> #28    (cadena: threshold field → form redesign → validation)
 ```
 
-#24 es foundational (seguridad). #25 puede ir en paralelo o después.
+#24 y #26 son foundational (seguridad). #25 puede ir en paralelo. #27
+necesita #25 aplicada para que `CourseSettings.tsx` tenga el campo
+approval_threshold que mostrar. #28 necesita #27 para que la
+validación opere sobre la nueva estructura seccionada.
 
 ### Criterio de cierre del bloque
 
 - `npx turbo run build --filter=admin --filter=services` sin errores.
+- `npx turbo run build` (monorepo completo) sin errores.
 - `curl` manual a `POST /v1/professor/course` con FormData válido:
   sin token → 401, con student → 403, con admin/professor/root → 200.
-- `curl` con `approval_threshold=1.5` o `=-0.1` → 400 con mensaje Joi.
-- `curl` sin `approval_threshold` en el FormData → 200 con la fila
-  persistida con `0.6`.
+- `curl` manual a `PUT /v1/course/edit/[id]` con FormData válido:
+  sin token → 401, con student → 403, con admin/professor/root → 200.
+- `curl` con `approval_threshold=1.5` o `=-0.1` (POST o PUT) → 400
+  con mensaje Joi.
+- `curl` sin `approval_threshold` en el FormData (POST) → 200 con la
+  fila persistida con `0.6`.
 - Crear curso desde `/cursos/nuevo` con threshold `0.8` → fila en
   `courses` con `0.8` (verificar con
   `SELECT approval_threshold FROM courses WHERE id = X`).
+- Editar curso desde `/cursos/[id]`, cambiar el umbral en
+  CourseSettings de 0.6 a 0.8, "Actualizar Información" → la fila
+  queda con 0.8.
+- Validación client-side (#28): submit con name vacío → swal con
+  error; submit con PDF como image → swal con error; submit con
+  image de 6MB → swal con error; submit con price=0 → swal con
+  error; submit válido → POST se hace.
+- Inspección visual: `/cursos/nuevo` muestra 3 cards (BasicInfo,
+  PresentationVideo, Settings) con styling
+  `bg-white/70 rounded-xl p-6 mb-6`, mismo orden visual que la
+  versión monolítica.
 
 ### Riesgos y notas
 
-- **El endpoint PUT `/v1/course/edit/[id]/route.ts` sigue sin
-  `checkRolWithAuth` y no extrae `approval_threshold`** del FormData.
-  Es bug preexistente que la #14-23 no cubrió. Si se decide cerrar,
-  abriría una #26 (`admin_edit_course_endpoint_hardening`).
-- **El form de crear curso no se rediseñó al patrón seccionado** de
-  la edición. Eso queda fuera de #24 y #25 (sería #27).
-- **#24 y #25 son `sdd: true`** porque tocan el endpoint crítico de
-  admin y un form con múltiples criterios.
+- **#27 (form redesign) es la más invasiva** de la fase: 3 archivos
+  nuevos + reducción de Form.tsx. Conviene hacer #25 antes para que
+  `CourseSettings.tsx` tenga contenido.
+- **#28 podría ser `sdd: false`** si las validaciones fueran
+  puramente triviales, pero como añade estado de errores, feedback
+  visual y computed `isFormValid`, queda `sdd: true`.
+- **#24, #25, #26, #27, #28 son todas `sdd: true`** porque tocan el
+  endpoint crítico de admin y/o el form con múltiples criterios.
 
 ---
 
