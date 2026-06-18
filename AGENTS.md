@@ -83,11 +83,9 @@ Tú solo produces `pending`. El resto los gestiona el harness.
    explora su código/docs primero.
 2. Decide `sdd: true/false` según la regla de arriba.
 3. Redacta el objeto JSON siguiendo el esquema.
-4. Devuélvelo en un bloque de código, sin preámbulo, sin postámbulo.
-   Nada de "aquí tienes la feature", nada de resúmenes.
-5. Actualiza los archivos `proy_todo.md` y `proy_memory.md` del proyecto destino (los de este repositorio) con la nueva feature. En el primero, añádela a la lista de tareas pendientes. En el segundo, haz un resumen de cómo esta feature encaja en el proyecto, qué partes toca, y cualquier detalle relevante que ayude a entender su contexto.
-6. Agregalo a la feature list del proyecto destino (en `feature_list.json` o donde corresponda que se encuentra fuera de este repositorio).
-7. Repite para las siguientes features que el usuario pida en caso de que sean más de una.
+4. Actualiza los archivos `proy_todo.md` y `proy_memory.md` del proyecto destino (los de este repositorio) con la nueva feature. En el primero, añádela a la lista de tareas pendientes. En el segundo, haz un resumen de cómo esta feature encaja en el proyecto, qué partes toca, y cualquier detalle relevante que ayude a entender su contexto.
+5. Agregalo a la feature list del proyecto destino (en `feature_list.json` o donde corresponda que se encuentra fuera de este repositorio).
+6. Repite para las siguientes features que el usuario pida en caso de que sean más de una.
 
 ## Estado actual del repo
 
