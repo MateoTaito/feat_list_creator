@@ -2,7 +2,7 @@
 
 ## Propósito del repositorio
 
-Este repo es un **borrador / buffer** para redactar entradas del array
+Este repo es un **redactor** para entradas del array
 `features` de un `feature_list.json` consumido por un harness SDD. El
 agente produce una feature bien formada por prompt. Luego el agente añade la feature
 al archivo correspondiente en el proyectode destino y agrega una referencia de las features
@@ -15,8 +15,6 @@ Harnesses de referencia cercanos (no se modifican desde aquí):
 
 ## Reglas duras
 
-- ❌ **Una sola feature por prompt.** Si el usuario pide varias, produce
-  la primera, paras, y esperas confirmación antes de continuar.
 - ❌ **No marques estados avanzados** (`spec_ready`, `in_progress`,
   `done`). El feature nuevo entra siempre como `"status": "pending"`.
 - ❌ **No inventes detalles del proyecto objetivo.** Si el usuario
@@ -87,6 +85,9 @@ Tú solo produces `pending`. El resto los gestiona el harness.
 3. Redacta el objeto JSON siguiendo el esquema.
 4. Devuélvelo en un bloque de código, sin preámbulo, sin postámbulo.
    Nada de "aquí tienes la feature", nada de resúmenes.
+5. Actualiza los archivos `proy_todo.md` y `proy_memory.md` del proyecto destino (los de este repositorio) con la nueva feature. En el primero, añádela a la lista de tareas pendientes. En el segundo, haz un resumen de cómo esta feature encaja en el proyecto, qué partes toca, y cualquier detalle relevante que ayude a entender su contexto.
+6. Agregalo a la feature list del proyecto destino (en `feature_list.json` o donde corresponda que se encuentra fuera de este repositorio).
+7. Repite para las siguientes features que el usuario pida en caso de que sean más de una.
 
 ## Estado actual del repo
 
