@@ -403,3 +403,103 @@ pending
 
 El `craftsman_lead` del repo del LMS es quien coordina; este archivo solo
 muestra el estado.
+
+---
+
+## Fase 4 — Rediseño visual masivo de admin + ajuste de tests (web)
+
+Bloque de rediseño UI para alinear toda la experiencia del admin con la
+nueva estética ya adoptada en `/cursos` (CoursesTable + cursos/page.tsx:
+`bg-lms-blue-50`, `text-uakari-grey`, `text-sm`, `max-w-7xl mx-auto`,
+fondo `#F1F8FF`, botones `bg-lms-blue-500`). Las páginas viejas
+(`/accesos`, `/profesores`, `/admins`, landing `/`, navbar, modales de
+agregar/editar) siguen con `bg-uakari-pale-white` + bordes naranja 2px +
+botones naranja/rosa, lo que rompe la consistencia visual.
+
+Adicionalmente, la web tiene un detalle de UX pendiente: el contenedor
+de preguntas de los tests se estira a todo el ancho en pantallas grandes.
+
+### Estado real encontrado (auditoría del repo LMS)
+
+- `apps/admin/app/accesos/AccesosTable.tsx` (188 líneas) — fondo
+  `bg-uakari-pale-white`, bordes `border-2 border-uakari-orange`,
+  botones naranja/rosa, columna "Acciones" con `<button id={admin.id}>Acción</button>`
+  sin `onClick` (dead button).
+- `apps/admin/app/components/ProfessorsTable.tsx` y
+  `ProfessorsAction.tsx` (edit modal) — misma estética vieja; el modal
+  de creación está inline en `apps/admin/app/profesores/page.tsx:117-172`
+  con `bg-white p-6 rounded shadow-lg max-w-3xl` (otro shell distinto).
+- `apps/admin/app/admins/components/AdminsTable.tsx` (110 líneas) —
+  misma estética vieja. `NewAdmin.tsx` (137 líneas) y
+  `components/SelectModal.tsx` (126 líneas) son los dos modales de
+  admins con el shell `bg-uakari-pale-white`.
+- `apps/admin/app/page.tsx:9-15` — header plano `Vista General` con
+  `bg-uakari-pale-white min-h-screen`. `Overview.tsx` ya tiene la nueva
+  estética en las cards pero el wrapper exterior la rompe.
+- `apps/admin/app/components/Navbar/Navbar.tsx:19` — navbar oscura
+  `bg-[#393434] h-24` con logo sin fondo definido.
+- `apps/admin/app/components/Navbar/UserView.tsx` — UserView de Clerk
+  sin estilo, dropdown sin theme custom.
+- 7+ modales de creación/edición con shells inconsistentes:
+  `categories/page.tsx`, `admins/NewAdmin.tsx`,
+  `profesores/page.tsx`, `profesores/ProfessorsAction.tsx`,
+  `cursos/components/FormEdit/moduleCreateModal.tsx`,
+  `cursos/components/FormEdit/submoduleCreateModal.tsx`,
+  `cursos/components/FormEdit/resourceCreateModal.tsx`,
+  `evaluaciones/preguntas/showModal.tsx`.
+- `apps/web/src/app/mis-cursos/view/[course_id]/[module_id]/evaluacion/components/main.tsx:59`
+  el contenedor de preguntas usa `mx-10` y `col-span-4 bg-white p-5`
+  sin límite de ancho. En un viewport de 1440px se estira a ~1400px.
+
+### Features planificadas (#33-#39)
+
+| # | Nombre | sdd | Descripción breve |
+|---|--------|-----|-------------------|
+| **33** | `test_questions_container_three_quarters` | ❌ | Cambio CSS puro: el `<div className="col-span-4 bg-white p-5">` interior del main.tsx de evaluación pasa a `bg-white p-5 mx-auto w-full max-w-[75%]`. El `mx-10` del wrapper exterior se elimina. Container queda centrado y limitado a 75% del viewport. |
+| **34** | `admin_accesos_table_modal_redesign` | ✅ | Rediseño de la tabla `AccesosTable.tsx` (lms-blue-50/grey) + nueva columna "Acciones" con botones "Editar" (lms-blue) y "Ver" (outline) + 3 modales nuevos (`UserDetailModal`, `UserEditModal`, `InviteUserModal`) usando el shell de #39. Input de búsqueda libre. Header con título + botón "Agregar usuario". Fondo `#F1F8FF`. |
+| **35** | `admin_profesores_table_modal_redesign` | ✅ | Rediseño de `ProfessorsTable.tsx` (lms-blue-50/grey) + 2 modales nuevos extraídos (`ProfessorAddModal`, `ProfessorEditModal`) usando el shell de #39. Nueva `ProfessorAction.tsx` en /profesores/. La vieja `ProfessorsAction.tsx` en /components/ se marca @deprecated (no se elimina para no romper #30). Header con título + botón "Agregar Profesor" (lms-blue). Input de búsqueda. Fondo `#F1F8FF`. |
+| **36** | `admin_admins_table_modal_redesign` | ✅ | Rediseño de `AdminsTable.tsx` (lms-blue-50/grey) + 2 modales nuevos (`AdminAddModal`, `AdminEditModal`) + refactor de `SelectModal` → `RolesCheckboxes` dentro del shell de #39. `NewAdmin.tsx` queda como wrapper que solo dispara el modal. Header con título. Input de búsqueda. Fondo `#F1F8FF`. |
+| **37** | `admin_landing_page_redesign` | ✅ | Hero block con `font-futuraExtraBlack text-4xl` "Panel de administración" + subtítulo. Divider `h-px bg-lms-blue-100`. Cards de Overview con padding p-8, íconos text-3xl, mini-footer "Ver detalles →". Footer sutil con `process.env.NODE_ENV`. Fondo `#F1F8FF`. |
+| **38** | `admin_navbar_redesign` | ✅ | Navbar cambia de `bg-[#393434] h-24` a `bg-white border-b border-lms-blue-100 shadow-sm h-20`. Botón hamburguesa lms-blue. Logo más compacto (140x70). UserView rediseñado con avatar+fullName+email+badge de rol. Dropdown de Clerk con `colorPrimary: '#95B6E8'`. Ajuste de `pt-32` → `pt-28` en todas las páginas de admin para compensar la nueva altura. |
+| **39** | `admin_add_modal_unified` | ✅ | Componentes nuevos: `AdminModal.tsx` (shell con logo LMS, header, body, footer), `AdminModalFooter.tsx` (botones estandarizados Cancelar pink + Confirmar lms-blue), `AdminField.tsx` (label + input/textarea + error). Migra 4 modales existentes: categories, moduleCreate, submoduleCreate, resourceCreate. Es dependencia dura de #34, #35, #36. |
+
+### Dependencias entre features nuevas
+
+```
+#33  #37  #38  #39   (independientes, foundational)
+            │
+   ┌────────┼────────┐
+   ▼        ▼        ▼
+  #34      #35      #36     (dependen de #39)
+```
+
+#33 es CSS puro en web → puede entrar solo.
+#37, #38, #39 son independientes entre sí y de las demás.
+#34, #35, #36 son los tres rediseños de tablas + modales de admin, y
+los tres dependen de #39 (el shell compartido de modales) para que
+sean consistentes visualmente. Sin #39 aplicada, habría que duplicar
+el shell del modal tres veces.
+
+### Criterio de cierre del bloque
+
+- `npx turbo run build` (monorepo completo) sin errores.
+- `npx turbo run typecheck` (si existe) sin errores.
+- `grep -rn 'bg-uakari-pale-white' apps/admin/app/accesos/ apps/admin/app/profesores/ apps/admin/app/admins/ apps/admin/app/page.tsx apps/admin/app/components/Navbar/`
+  → 0 ocurrencias en archivos `.tsx` (las páginas y componentes rediseñados no deben seguir usando el fondo viejo).
+- `grep -rn 'border-2 border-uakari-orange' apps/admin/app/accesos/ apps/admin/app/profesores/ apps/admin/app/admins/` → 0 ocurrencias (las tablas rediseñadas no usan los bordes naranja).
+- `grep -rn 'pt-32' apps/admin/app/` → solo dentro de las páginas que NO se rediseñaron (e.g. evaluaciones/) o reemplazado por `pt-28` en las rediseñadas.
+- Inspección visual: las 6 páginas de admin (landing, accesos, admins, cursos, evaluaciones, profesores, categories) comparten el mismo fondo `#F1F8FF` + la misma navbar blanca con borde lms-blue-100.
+- **Diff visual side-by-side** entre `/cursos` (referencia canónica) y cada uno de los tres registros (`/accesos`, `/profesores`, `/admins`) levantados en `npx turbo run dev` con pestañas paralelas. No debe haber diferencias de paleta (`#F1F8FF` / `bg-lms-blue-50`), tipografía (`text-uakari-grey` / `text-sm`), estilos de botón (`bg-lms-blue-500` primario, `bg-uakari-pink` peligro), estilo de tabla (`bg-lms-blue-50` en `<thead>`, `hover:bg-lms-blue-50/50` en filas) o estilo de input (`focus:ring-lms-blue-500`). Los tres registros son un espejo de /cursos.
+- Inspección visual: los modales de creación/edición de categorías, profesores, admins, accesos, módulo, submódulo y recurso usan el mismo shell (logo LMS, header con tipografía del sitio, footer con botones pink+lms-blue en el mismo orden).
+- `npx turbo run build --filter=admin --filter=web` sin errores; abrir `/` autenticado como admin muestra el hero rediseñado; abrir `/accesos` muestra la tabla con `bg-lms-blue-50` y los 3 modales; abrir `/profesores` y `/admins` muestra el mismo patrón; abrir `/{cursos_id}/{mod_id}/evaluacion` autenticado como estudiante muestra el contenedor de preguntas al 75% del ancho y centrado.
+
+### Riesgos y notas
+
+- **#39 es la más invasiva** del bloque: 4 archivos refactorizados (categories, moduleCreate, submoduleCreate, resourceCreate) + 3 archivos nuevos. Es el prerequisite de #34, #35, #36, así que tiene que entrar primero.
+- **#38 (navbar) rompe el `pt-32`** de todas las páginas de admin. El grep arriba es la verificación clave — si se olvida ajustar el `pt-32` en alguna página, el contenido quedará tapado por la navbar o tendrá un gap visible arriba.
+- **#34 (accesos) añade flujo de creación/invitación que antes no existía** (`InviteUserModal`). El endpoint `createAdmin` se reusa temporalmente; un endpoint dedicado de invitación queda para una fase posterior. Documentar esto en el código.
+- **#35 (profesores) depreca visualmente** `apps/admin/app/components/ProfessorsAction.tsx` pero NO lo elimina (para no romper el test de #30 que importa `DeleteModalProf` desde ahí). Marcar con `@deprecated` y comment JSDoc.
+- **#36 (admins) renombra** `SelectModal.tsx` → `RolesCheckboxes.tsx` (porque el componente deja de ser un modal completo y pasa a ser solo el bloque de checkboxes dentro del nuevo shell). Actualizar imports en `EditAdmin.tsx`.
+- **#33 es CSS puro**, no toca lógica ni tipos. Marcado `sdd: false` por ser trivial. El acceptance verifica `mx-10` eliminado y `max-w-[75%]` agregado.
+- **#37, #38 no son pre-requisito de las features 34-36**, pero conviene aplicarlas después para que el rediseño completo (incluyendo landing y navbar) llegue de una sola vez al usuario final.
+

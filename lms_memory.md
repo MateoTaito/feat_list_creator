@@ -170,3 +170,110 @@ para features de schema + migración.
   (soft deprecado en #29 — antes era required, ahora es opcional con
   nota "legacy" en el form). Si la API de Shopify falla, el handle
   queda `undefined` y el curso se crea igual.
+
+## Estética visual (estado post-fase 4)
+
+Dos paletas coexisten en `apps/admin/app/`; la fase 4 (#33-#39) cierra
+esa divergencia.
+
+### Paleta "nueva" (lms-blue) — la que se está adoptando
+
+Adoptada por `apps/admin/app/cursos/` (CoursesTable + page.tsx) y
+`apps/admin/app/components/Overview.tsx`. Es el target de #33-#39.
+
+- Fondo de página: `style={{backgroundColor: '#F1F8FF'}}` o
+  `bg-lms-blue-50` (mismo color, el segundo es alias del primero).
+- Wrapper: `min-h-screen pt-{28|32}` + `max-w-7xl mx-auto` +
+  `px-4/6 pb-8/10`.
+- Header de página: `flex justify-between items-center mb-6` con
+  `<h1 className="text-3xl font-semibold text-uakari-grey">` + botón
+  primario `bg-lms-blue-500 hover:bg-lms-blue-600 text-white
+  font-semibold px-6 py-2 rounded-lg shadow-md`.
+- Tabla: `<thead>` con `bg-lms-blue-50 text-uakari-grey` y celdas
+  `py-3 px-4 font-medium text-left text-sm`. `<tbody>` con filas
+  `hover:bg-lms-blue-50/50 transition-colors` y separador
+  `border-b border-gray-100`. Columna Acciones con
+  `flex gap-2 justify-center items-center`.
+- Botones de acción en filas: primario `bg-lms-blue-500` (Editar),
+  peligro `bg-uakari-pink hover:bg-uakari-pink-600` (Eliminar).
+- Input de búsqueda: `w-full px-4 py-2 bg-white border border-gray-200
+  rounded-lg shadow-sm focus:outline-none focus:ring-2
+  focus:ring-lms-blue-500`.
+- Navbar (post-#38): `bg-white border-b border-lms-blue-100
+  shadow-sm z-50 fixed w-full h-20` con logo y UserView propios.
+  Páginas internas usan `pt-28` (antes era `pt-32` con la navbar
+  oscura de 96px).
+- Modales (post-#39): shell compartido
+  `apps/admin/app/components/modal/AdminModal.tsx` con logo LMS,
+  `<h3 className="text-lg font-semibold text-uakari-grey text-center">`,
+  body con `AdminField` (input con `focus:ring-lms-blue-500
+  focus:border-lms-blue-500`), footer con
+  `AdminModalFooter` (Cancelar pink + Confirmar lms-blue).
+
+### Paleta "vieja" (uakari-pale-white + naranja) — la que se va a migrar
+
+Aún presente en `apps/admin/app/accesos/AccesosTable.tsx`,
+`apps/admin/app/components/ProfessorsTable.tsx`,
+`apps/admin/app/components/ProfessorsAction.tsx` (edit modal),
+`apps/admin/app/components/CategoriesTable.tsx`,
+`apps/admin/app/admins/components/AdminsTable.tsx`,
+`apps/admin/app/admins/components/SelectModal.tsx`,
+`apps/admin/app/admins/NewAdmin.tsx`,
+`apps/admin/app/profesores/page.tsx` (create modal),
+`apps/admin/app/components/Navbar/Navbar.tsx` (la navbar oscura
+  `bg-[#393434] h-24`),
+`apps/admin/app/page.tsx:9` (wrapper exterior landing).
+
+Patrón viejo: `bg-uakari-pale-white min-h-screen` + `max-w-7xl
+mx-auto` + tabla con `border-2 border-uakari-orange` + botones
+`bg-uakari-orange` (primario) y `bg-uakari-pink` (peligro) +
+tipografía centrada.
+
+### Decisiones de diseño que fijan los acceptance (fase 4)
+
+- **REGLA TRANSVERSAL — los tres registros son un espejo de /cursos**:
+  las features #34 (accesos), #35 (profesores) y #36 (admins) deben
+  implementarse como un calco visual de la vista actual de Cursos
+  (`apps/admin/app/cursos/page.tsx` + `apps/admin/app/cursos/components/CoursesTable.tsx`).
+  Esa página es la referencia canónica de la nueva estética y NO
+  se toca en este bloque. Cualquier elemento de las tres páginas
+  de registro (header, wrapper, fondo, tabla, input de búsqueda,
+  botones, modales vía #39) que difiera del patrón establecido en
+  /cursos debe justificarse explícitamente en el PR. El criterio
+  de cierre del bloque en `lms_todo.md` incluye un diff visual
+  side-by-side entre /cursos y cada uno de los tres registros. La
+  descripción de cada una de las tres features y su último
+  acceptance criterion repiten esta regla de forma explícita.
+
+- **#33 (test container 3/4)**: `max-w-[75%]` con `mx-auto` en el
+  `<div className="col-span-4">` interior. El wrapper exterior pierde
+  el `mx-10`. Se mantiene `top-[100px]` y `bg-white p-5` para no
+  romper el fondo decorativo de #13.
+- **#34 (accesos)**: el botón "Acción" sin `onClick` se reemplaza por
+  dos botones reales ("Editar" + "Ver"). El modal de creación se llama
+  `InviteUserModal` y reusa `createAdmin` (un endpoint dedicado de
+  invitación queda para otra fase; documentar en el código).
+- **#35 (profesores)**: `ProfessorsAction.tsx` se mueve de
+  `apps/admin/app/components/` a `apps/admin/app/profesores/`. La
+  copia vieja se marca `@deprecated` con JSDoc, no se elimina (rompe
+  el test de #30).
+- **#36 (admins)**: `SelectModal.tsx` se renombra a
+  `RolesCheckboxes.tsx` y deja de ser modal completo; el modal
+  completo lo provee `AdminEditModal.tsx` (que envuelve el shell de
+  #39 + el `RolesCheckboxes`).
+- **#37 (landing)**: hero en `font-futuraExtraBlack text-4xl
+  text-uakari-grey` con subtítulo en `font-jakarta`. Cards de
+  Overview con `p-8` (antes `p-6`) e íconos `text-3xl` (antes
+  `text-2xl`).
+- **#38 (navbar)**: `bg-white border-b border-lms-blue-100 shadow-sm
+  h-20` reemplaza `bg-[#393434] h-24`. El dropdown de Clerk de
+  UserView recibe `variables: { colorPrimary: '#95B6E8', colorText:
+  '#575756', borderRadius: '0.5rem' }`. `pt-32` → `pt-28` en todas
+  las páginas de admin que se renderizan debajo de la navbar fija.
+- **#39 (add modal)**: el shell compartido vive en
+  `apps/admin/app/components/modal/AdminModal.tsx` y se importa vía
+  barrel `apps/admin/app/components/modal/index.ts`. Footer default:
+  Cancelar pink (`bg-uakari-pink hover:bg-uakari-pink-600`) +
+  Confirmar lms-blue (`bg-lms-blue-500 hover:bg-lms-blue-600`). El
+  logo LMS va arriba (`width={80} height={80}`) con
+  `NEXT_PUBLIC_ADMIN_PREFIX` cuando aplique.
